@@ -46,4 +46,4 @@
     ))
 
 ;1.3.6.1.2.1.2.2.1.21.1
-(println (str "sysUpTime = " (snmpgetv1 "192.168.0.3" "public" "1.3.6.1.2.1.1.3.0")))
+;(println (str "sysUpTime = " (snmpgetv1 "192.168.0.3" "public" "1.3.6.1.2.1.1.3.0")))
