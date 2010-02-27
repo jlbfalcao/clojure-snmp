@@ -8,42 +8,54 @@
     [org.snmp4j.transport DefaultUdpTransportMapping]
     [org.snmp4j.event.ResponseEvent]
     [org.snmp4j.smi OID VariableBinding OctetString GenericAddress]
+    [java.net InetAddress]
     )
   )
 
 (defn build-target [host community]
-  (let [target (CommunityTarget.)]
-    (. target setCommunity (new OctetString community))
-    (. target setAddress (GenericAddress/parse (format "udp:%s/161" host)))
-    (. target setVersion SnmpConstants/version1)
-    (. target setRetries 0)
-    (. target setTimeout 1000)
-    ; how improve?
-    (first [target])
+  "Returns CommunityTarget object"
+  (doto (CommunityTarget.)
+    (.setCommunity (new OctetString community))
+    (.setAddress (GenericAddress/parse (format "udp:%s/161" host)))
+    (.setVersion SnmpConstants/version1)
+    (.setRetries 0)
+    (.setTimeout 1000)
     )
   )
 
-(defn snmpgetv1 [host community & oid]
-  (let [pdu (PDU.)]
-    (do
-      ; add many
-      (. pdu add (new VariableBinding (new OID (first oid))))
-      (. pdu setType PDU/GETBULK)
-      (def target (build-target host community))
-      (def snmp (new Snmp (new DefaultUdpTransportMapping)))
-      (. snmp listen)
-      (def event (. snmp get pdu target))
-      (def response (. event getResponse))
-      (. snmp close)
-      ;      (println (str "getType=" (. response getType)))
-;      (if response ; response == nil
-        (if (== (. response getType) PDU/RESPONSE)
-          (str (. (first (. response getVariableBindings)) getVariable))
-          nil
-          )
-        )
-;      nil)
-    ))
+;(println (str "@" (build-target "host" "public")))
 
-;1.3.6.1.2.1.2.2.1.21.1
-;(println (str "sysUpTime = " (snmpgetv1 "192.168.0.3" "public" "1.3.6.1.2.1.1.3.0")))
+(defn build-pdu [oid]
+  "Build PDU Object"
+  (doto (PDU.)
+    (.setType PDU/GETBULK)
+    (.addAll (into-array (map #(VariableBinding. (OID. (str %))) oid)))
+    )
+  )
+
+;(build-pdu '("1.3.6.1.2.1.1.3.0" "1.3.6.1.2.1.2.2.1.21.1"))
+
+(defn response? [response]
+  (and response (== (. response getType) PDU/RESPONSE))
+  )
+
+;(response? nil)
+
+(defn snmpgetv1 [host community & oid]
+  (do
+    (def pdu (build-pdu oid))
+    (def target (build-target host community))
+    (def snmp (Snmp. (DefaultUdpTransportMapping.)))
+    (. snmp listen)
+    (def event (. snmp get pdu target))
+    (def response (. event getResponse))
+    (. snmp close)
+    (when (response? response)
+      ; return data.
+      (map #(str (. % getVariable)) (. response getVariableBindings))
+    )
+  )
+)
+
+(println (str "sysUpTime = " (snmpgetv1 "192.168.0.3" "public" "1.3.6.1.2.1.1.3.0" "1.3.6.1.2.1.2.2.1.21.1")))
+
